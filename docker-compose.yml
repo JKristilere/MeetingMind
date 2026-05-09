@@ -1,0 +1,188 @@
+version: "3.9"
+
+# ─── MeetingMind — Full Stack Docker Compose ────────────────────────────────
+# Services:
+#   postgres   — Primary database
+#   redis      — Celery broker + result backend + cache
+#   minio      — S3-compatible object storage (audio files, transcripts)
+#   backend    — FastAPI application
+#   worker     — Celery worker (transcription + AI analysis)
+#   flower     — Celery monitoring dashboard
+#   ollama     — Local LLM (Llama 3.2) — optional, set LLM_PROVIDER=anthropic to skip
+#   frontend   — React (Vite) web app
+#   nginx      — Reverse proxy
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-backend-env: &backend-env
+  env_file: .env
+  environment:
+    - POSTGRES_HOST=postgres
+    - REDIS_URL=redis://redis:6379/0
+    - CELERY_BROKER_URL=redis://redis:6379/0
+    - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    - MINIO_ENDPOINT=minio:9000
+    - OLLAMA_BASE_URL=http://ollama:11434
+
+services:
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-meetingmind}
+      POSTGRES_USER: ${POSTGRES_USER:-meetingmind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meetingmind_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-meetingmind}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin_secret}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9001:9001"   # MinIO console — accessible at http://localhost:9001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - internal
+
+  # ── Application ─────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    <<: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    networks:
+      - internal
+      - external
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    <<: *backend-env
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    volumes:
+      - ./backend:/app
+      - whisper_models:/root/.cache/huggingface  # Cache Whisper model weights
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q processing,notifications -c 2
+    networks:
+      - internal
+
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    <<: *backend-env
+    depends_on:
+      - redis
+    ports:
+      - "5555:5555"
+    command: celery -A app.workers.celery_app flower --port=5555
+    networks:
+      - internal
+      - external
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    # GPU support — uncomment if you have NVIDIA GPU:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    networks:
+      - internal
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=/api/v1
+    networks:
+      - external
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - external
+      - internal
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  ollama_models:
+  whisper_models:
+
+networks:
+  internal:
+    driver: bridge
+  external:
+    driver: bridge
