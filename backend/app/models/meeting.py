@@ -10,6 +10,7 @@ import enum
 from app.database import Base
 
 
+
 class MeetingStatus(str, enum.Enum):
     PENDING = "pending"
     UPLOADING = "uploading"
