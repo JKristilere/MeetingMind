@@ -169,72 +169,109 @@ def send_notifications_task(self, meeting_id: str):
     log.info("task.send_notifications.start", meeting_id=meeting_id)
     engine = _get_sync_engine()
 
-    with Session(engine) as db:
-        result = db.execute(
-            select(Meeting)
-            .options(
-                selectinload(Meeting.action_items),
-                selectinload(Meeting.participants),
-                selectinload(Meeting.host),
+    try:
+        with Session(engine) as db:
+            result = db.execute(
+                select(Meeting)
+                .options(
+                    selectinload(Meeting.action_items),
+                    selectinload(Meeting.participants),
+                    selectinload(Meeting.host),
+                )
+                .where(Meeting.id == uuid.UUID(meeting_id))
             )
-            .where(Meeting.id == uuid.UUID(meeting_id))
-        )
-        meeting = result.scalar_one_or_none()
-        if not meeting or meeting.status != MeetingStatus.COMPLETED:
-            return
+            meeting = result.scalar_one_or_none()
+            if not meeting or meeting.status != MeetingStatus.COMPLETED:
+                log.warning("task.send_notifications.skipped", meeting_id=meeting_id,
+                            reason="not found or not completed")
+                return
 
-        action_items = [
-            {
-                "title": item.title,
-                "assignee": item.assignee_name_raw,
-                "due_date": item.due_date.strftime("%d %b %Y") if item.due_date else None,
-                "priority": item.priority,
-            }
-            for item in meeting.action_items
-        ]
+            action_items = [
+                {
+                    "title": item.title,
+                    "assignee": item.assignee_name_raw,
+                    "due_date": item.due_date.strftime("%d %b %Y") if item.due_date else None,
+                    "priority": item.priority,
+                }
+                for item in meeting.action_items
+            ]
 
-        meeting_url = f"{settings.app_frontend_url}/meetings/{meeting_id}"
-        whatsapp_svc = WhatsAppNotificationService()
-        email_svc = EmailNotificationService()
+            meeting_url = f"{settings.app_frontend_url}/meetings/{meeting_id}"
+            whatsapp_svc = WhatsAppNotificationService()
+            email_svc = EmailNotificationService()
 
-        recipients = []
+            recipients = []
 
-        # Always notify the host
-        if meeting.host:
-            recipients.append({
-                "name": meeting.host.full_name,
-                "email": meeting.host.email,
-                "whatsapp": meeting.host.whatsapp_number,
-            })
+            # Always notify the host
+            if meeting.host:
+                recipients.append({
+                    "name": meeting.host.full_name,
+                    "email": meeting.host.email,
+                    "whatsapp": meeting.host.whatsapp_number,
+                })
 
-        # Notify all participants
-        for p in meeting.participants:
-            recipients.append({
-                "name": p.name,
-                "email": p.email,
-                "whatsapp": p.whatsapp_number,
-            })
+            # Notify all participants
+            for p in meeting.participants:
+                recipients.append({
+                    "name": p.name,
+                    "email": p.email,
+                    "whatsapp": p.whatsapp_number,
+                })
 
-        for recipient in recipients:
-            if recipient.get("whatsapp"):
-                whatsapp_svc.send_action_items(
-                    to_number=recipient["whatsapp"],
-                    meeting_title=meeting.title,
-                    summary=meeting.summary or "",
-                    action_items=action_items,
-                    recipient_name=recipient["name"],
-                )
-            if recipient.get("email"):
-                email_svc.send_meeting_summary(
-                    to_email=recipient["email"],
-                    recipient_name=recipient["name"],
-                    meeting_title=meeting.title,
-                    summary=meeting.summary or "",
-                    action_items=action_items,
-                    meeting_url=meeting_url,
-                )
+            emails_sent = 0
+            emails_failed = 0
+            whatsapp_sent = 0
 
-        meeting.whatsapp_sent_at = datetime.now(timezone.utc)
-        meeting.email_sent_at = datetime.now(timezone.utc)
-        db.commit()
-        log.info("task.send_notifications.success", meeting_id=meeting_id)
+            for recipient in recipients:
+                if recipient.get("whatsapp"):
+                    ok = whatsapp_svc.send_action_items(
+                        to_number=recipient["whatsapp"],
+                        meeting_title=meeting.title,
+                        summary=meeting.summary or "",
+                        action_items=action_items,
+                        recipient_name=recipient["name"],
+                    )
+                    if ok:
+                        whatsapp_sent += 1
+
+                if recipient.get("email"):
+                    ok = email_svc.send_meeting_summary(
+                        to_email=recipient["email"],
+                        recipient_name=recipient["name"],
+                        meeting_title=meeting.title,
+                        summary=meeting.summary or "",
+                        action_items=action_items,
+                        meeting_url=meeting_url,
+                    )
+                    if ok:
+                        emails_sent += 1
+                        log.info("email.sent", to=recipient["email"], meeting_id=meeting_id)
+                    else:
+                        emails_failed += 1
+                        log.error("email.send_failed_for_recipient", to=recipient["email"],
+                                  meeting_id=meeting_id)
+
+            now = datetime.now(timezone.utc)
+            if whatsapp_sent:
+                meeting.whatsapp_sent_at = now
+            if emails_sent:
+                meeting.email_sent_at = now
+            db.commit()
+
+            log.info(
+                "task.send_notifications.success",
+                meeting_id=meeting_id,
+                emails_sent=emails_sent,
+                emails_failed=emails_failed,
+                whatsapp_sent=whatsapp_sent,
+            )
+
+    except Exception as exc:
+        log.error("task.send_notifications.failed", meeting_id=meeting_id, error=str(exc))
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(name="app.workers.tasks.send_test_mail_task")
+def send_test_mail_task(to_email: str) -> None:
+    EmailNotificationService().send_test_mail(to_email=to_email)
+    log.info("task.send_test_mail.success", to_email=to_email)
