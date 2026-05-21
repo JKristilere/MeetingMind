@@ -58,6 +58,7 @@ async def create_organisation(body: OrganisationCreate, current_user: CurrentUse
 
 @router.get("", response_model=list[OrganisationResponse])
 async def list_my_organisations(current_user: CurrentUser, db: DB):
+    
     result = await db.execute(
         select(Organisation)
         .join(OrganisationMember)
