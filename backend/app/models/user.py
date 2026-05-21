@@ -7,7 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
-
+from app.models.organisation import OrganisationMember
+from app.models.meeting import Meeting, ActionItem
 
 class User(Base):
     __tablename__ = "users"
