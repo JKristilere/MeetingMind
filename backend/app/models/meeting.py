@@ -47,8 +47,8 @@ class Meeting(Base):
     host_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     title: Mapped[str] = mapped_column(String(300))
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    status: Mapped[MeetingStatus] = mapped_column(SAEnum(MeetingStatus), default=MeetingStatus.PENDING)
-    language: Mapped[Language] = mapped_column(SAEnum(Language), default=Language.AUTO)
+    status: Mapped[MeetingStatus] = mapped_column(SAEnum(MeetingStatus, values_callable=lambda x: [e.value for e in x]), default=MeetingStatus.PENDING)
+    language: Mapped[Language] = mapped_column(SAEnum(Language, values_callable=lambda x: [e.value for e in x]), default=Language.AUTO)
 
     # Audio / video storage
     audio_file_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
@@ -119,7 +119,7 @@ class ActionItem(Base):
     title: Mapped[str] = mapped_column(String(500))
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     due_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    status: Mapped[ActionItemStatus] = mapped_column(SAEnum(ActionItemStatus), default=ActionItemStatus.OPEN)
+    status: Mapped[ActionItemStatus] = mapped_column(SAEnum(ActionItemStatus, values_callable=lambda x: [e.value for e in x]), default=ActionItemStatus.OPEN)
     priority: Mapped[str] = mapped_column(String(10), default="medium")  # low | medium | high
     assignee_name_raw: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
