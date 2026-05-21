@@ -22,7 +22,8 @@ class Base(DeclarativeBase):
     pass
 
 
-async def get_db() -> AsyncSession:
+from typing import AsyncGenerator, Any
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         try:
             yield session

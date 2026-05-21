@@ -1,10 +1,14 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Resolve .env from project root regardless of working directory
+_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(_ENV_FILE), extra="ignore")
 
     # App
     app_env: Literal["development", "staging", "production"] = "development"
@@ -78,8 +82,11 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_whatsapp_from: str = "whatsapp:+14155238886"
-    smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 587
+    # Email — "resend" for production (REST API, no SMTP), "smtp" for dev (Mailpit)
+    email_provider: Literal["resend", "smtp"] = "smtp"
+    resend_api_key: str = ""
+    smtp_host: str = "mailpit"
+    smtp_port: int = 1025
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from_email: str = "noreply@meetingmind.app"
