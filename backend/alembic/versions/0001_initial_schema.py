@@ -44,7 +44,7 @@ def upgrade() -> None:
         "plans",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("name", sa.String(50), unique=True, nullable=False),
-        sa.Column("tier", sa.Enum("free", "starter", "growth", "business", name="plantier"), nullable=False),
+        sa.Column("tier", postgresql.ENUM("free", "starter", "growth", "business", name="plantier", create_type=False), nullable=False),
         sa.Column("price_kobo", sa.Integer, nullable=False),
         sa.Column("max_users", sa.Integer, nullable=True),
         sa.Column("max_meetings_per_month", sa.Integer, nullable=True),
@@ -101,7 +101,7 @@ def upgrade() -> None:
                   sa.ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False),
         sa.Column("user_id", postgresql.UUID(as_uuid=True),
                   sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("role", sa.Enum("owner", "admin", "member", "viewer", name="memberrole"), nullable=False,
+        sa.Column("role", postgresql.ENUM("owner", "admin", "member", "viewer", name="memberrole", create_type=False), nullable=False,
                   server_default="member"),
         sa.Column("joined_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
@@ -132,11 +132,11 @@ def upgrade() -> None:
         sa.Column("host_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("title", sa.String(300), nullable=False),
         sa.Column("description", sa.Text, nullable=True),
-        sa.Column("status", sa.Enum(
+        sa.Column("status", postgresql.ENUM(
             "pending", "uploading", "processing", "transcribing", "analysing", "completed", "failed",
-            name="meetingstatus",
+            name="meetingstatus", create_type=False,
         ), nullable=False, server_default="pending"),
-        sa.Column("language", sa.Enum("en", "pcm", "yo", "ig", "ha", "fr", "sw", "auto", name="language"),
+        sa.Column("language", postgresql.ENUM("en", "pcm", "yo", "ig", "ha", "fr", "sw", "auto", name="language", create_type=False),
                   nullable=False, server_default="auto"),
         sa.Column("audio_file_key", sa.String(500), nullable=True),
         sa.Column("audio_duration_seconds", sa.Float, nullable=True),
@@ -188,8 +188,8 @@ def upgrade() -> None:
         sa.Column("title", sa.String(500), nullable=False),
         sa.Column("description", sa.Text, nullable=True),
         sa.Column("due_date", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("status", sa.Enum(
-            "open", "in_progress", "completed", "cancelled", name="actionitemstatus"
+        sa.Column("status", postgresql.ENUM(
+            "open", "in_progress", "completed", "cancelled", name="actionitemstatus", create_type=False,
         ), nullable=False, server_default="open"),
         sa.Column("priority", sa.String(10), nullable=False, server_default="medium"),
         sa.Column("assignee_name_raw", sa.String(200), nullable=True),
