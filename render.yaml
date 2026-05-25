@@ -1,0 +1,132 @@
+# render.yaml — Render.com Blueprint
+# Deploys: FastAPI backend + Celery worker
+# Free tier: web service sleeps after 15 min inactivity (fine for portfolio)
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  # ── FastAPI Backend ─────────────────────────────────────────────────────────
+  - type: web
+    name: meetingmind-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      # Database — paste Neon connection string
+      - key: DATABASE_URL
+        sync: false   # set manually in Render dashboard
+      # Redis — paste Upstash Redis URL
+      - key: REDIS_URL
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
+      # Storage — Cloudflare R2
+      - key: STORAGE_PROVIDER
+        value: r2
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_AUDIO
+        value: meetingmind-audio
+      - key: R2_BUCKET_TRANSCRIPTS
+        value: meetingmind-transcripts
+      # Transcription — Groq (free)
+      - key: TRANSCRIPTION_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      # LLM — Groq (free)
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_WHISPER_MODEL
+        value: whisper-large-v3
+      # Auth
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: APP_SECRET_KEY
+        generateValue: true
+      # Frontend URL (update after Vercel deploy)
+      - key: APP_FRONTEND_URL
+        value: https://meetingmind.vercel.app
+      # Notifications (optional)
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+
+  # ── Celery Worker ───────────────────────────────────────────────────────────
+  - type: worker
+    name: meetingmind-worker
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A app.workers.celery_app worker --loglevel=info -Q processing,notifications -c 1
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
+      - key: STORAGE_PROVIDER
+        value: r2
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_AUDIO
+        value: meetingmind-audio
+      - key: R2_BUCKET_TRANSCRIPTS
+        value: meetingmind-transcripts
+      - key: TRANSCRIPTION_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_WHISPER_MODEL
+        value: whisper-large-v3
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: APP_SECRET_KEY
+        sync: false
+      - key: APP_FRONTEND_URL
+        value: https://meetingmind.vercel.app
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false

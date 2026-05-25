@@ -51,15 +51,26 @@ class Settings(BaseSettings):
     minio_secure: bool = False
 
     # Transcription
-    transcription_provider: Literal["whisper", "azure"] = "whisper"
-    whisper_model_size: str = "medium"
+    # "whisper" = local faster-whisper (Docker/VPS only)
+    # "groq"    = Groq Whisper API  (free cloud — best for Render/portfolio)
+    # "azure"   = Azure Speech
+    transcription_provider: Literal["whisper", "groq", "azure"] = "whisper"
+    whisper_model_size: str = "base"   # tiny/base fit Render free 512 MB RAM
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
     azure_speech_key: str = ""
     azure_speech_region: str = "eastus"
 
     # LLM
-    llm_provider: Literal["ollama", "anthropic", "openai", "azure_openai"] = "ollama"
+    # "groq"        = Groq (free, fast Llama 3.3-70B — best for portfolio)
+    # "ollama"      = local Ollama (Docker only)
+    # "anthropic"   = Claude (paid)
+    # "openai"      = GPT-4o (paid)
+    # "azure_openai"= Azure OpenAI (paid)
+    llm_provider: Literal["groq", "ollama", "anthropic", "openai", "azure_openai"] = "ollama"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"   # free on Groq
+    groq_whisper_model: str = "whisper-large-v3"   # free Groq Whisper
     ollama_base_url: str = "http://ollama:11434"
     ollama_model: str = "llama3.2"
     anthropic_api_key: str = ""
@@ -69,6 +80,18 @@ class Settings(BaseSettings):
     azure_openai_key: str = ""
     azure_openai_endpoint: str = ""
     azure_openai_deployment: str = ""
+
+    # Storage
+    # "minio" = self-hosted MinIO (Docker/VPS)
+    # "r2"    = Cloudflare R2 (free 10 GB/month — best for portfolio)
+    # "s3"    = AWS S3
+    storage_provider: str = "minio"
+    # Cloudflare R2 — set when storage_provider=r2
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket_audio: str = "meetingmind-audio"
+    r2_bucket_transcripts: str = "meetingmind-transcripts"
 
     # Auth
     jwt_secret_key: str = "change-me-jwt"

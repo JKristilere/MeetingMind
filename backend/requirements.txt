@@ -29,6 +29,7 @@ faster-whisper==1.1.0
 azure-cognitiveservices-speech==1.43.0
 
 # ── AI / LLM ──────────────────────────────
+groq==0.13.1              # Free LLM + Whisper API — recommended for free deployment
 anthropic
 openai
 ollama
@@ -55,4 +56,3 @@ pydub==0.25.1
 
 # ── Payments ──────────────────────────────
 paystack-sdk==1.0.1
-

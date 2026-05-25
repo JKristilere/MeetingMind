@@ -1,9 +1,14 @@
 """
-Transcription service — supports two providers:
-  - faster-whisper  (local, open source, zero per-call cost)
-  - azure           (cloud, accurate for Nigerian accents with custom models)
+Transcription service — supports three providers:
+  - faster-whisper  (local, open source — Docker/VPS only; needs ≥1 GB RAM)
+  - groq            (Groq Whisper API — FREE, fast, perfect for Render/portfolio)
+  - azure           (Azure Speech-to-Text — paid cloud)
 
 Switch via TRANSCRIPTION_PROVIDER env var.
+
+For free cloud deployment (Render free tier, 512 MB RAM):
+  Set TRANSCRIPTION_PROVIDER=groq and add GROQ_API_KEY.
+  Groq's Whisper large-v3 is free and handles Nigerian English well.
 """
 import tempfile
 import os
@@ -31,15 +36,68 @@ class TranscriptionResult:
     word_count: int
 
 
+class GroqTranscriptionService:
+    """
+    Groq Whisper API — free tier, extremely fast (~10s for 30-min audio).
+    Uses whisper-large-v3 which handles Nigerian English & code-switching well.
+    Sign up free at console.groq.com
+    """
+
+    def transcribe(self, audio_bytes: bytes, language_hint: str | None = None) -> TranscriptionResult:
+        from groq import Groq
+
+        client = Groq(api_key=settings.groq_api_key)
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        try:
+            with open(tmp_path, "rb") as audio_file:
+                kwargs = {
+                    "file": audio_file,
+                    "model": settings.groq_whisper_model,
+                    "response_format": "verbose_json",
+                    "timestamp_granularities": ["segment"],
+                }
+                if language_hint and language_hint != "auto":
+                    kwargs["language"] = language_hint
+
+                transcription = client.audio.transcriptions.create(**kwargs)
+
+            segments = []
+            if hasattr(transcription, "segments") and transcription.segments:
+                for seg in transcription.segments:
+                    segments.append(TranscriptSegment(
+                        start=seg.start,
+                        end=seg.end,
+                        text=seg.text.strip(),
+                        confidence=getattr(seg, "avg_logprob", None),
+                    ))
+
+            full_text = transcription.text or ""
+            detected_lang = getattr(transcription, "language", language_hint or "en")
+
+            return TranscriptionResult(
+                text=full_text,
+                segments=segments,
+                detected_language=detected_lang,
+                confidence=0.9,
+                word_count=len(full_text.split()),
+            )
+        finally:
+            os.unlink(tmp_path)
+
+
 class WhisperTranscriptionService:
     """
     Local transcription using faster-whisper.
-    Supports English, Nigerian Pidgin (as English), Yoruba, Igbo, Hausa.
-    Whisper handles code-switching reasonably well by transcribing the
-    dominant language while preserving mixed phrases.
+    Use this with Docker Compose or a VPS with ≥2 GB RAM.
+    Set WHISPER_MODEL_SIZE=base for Render's 512 MB free tier (lower accuracy).
+    Set WHISPER_MODEL_SIZE=medium or large-v3 on a paid VPS for best accuracy.
     """
 
-    _model = None  # Module-level singleton to avoid reloading per task
+    _model = None
 
     @classmethod
     def _get_model(cls):
@@ -60,7 +118,7 @@ class WhisperTranscriptionService:
             tmp_path = tmp.name
 
         try:
-            kwargs = {"beam_size": 5, "vad_filter": True, "vad_parameters": {"min_silence_duration_ms": 500}}
+            kwargs = {"beam_size": 5, "vad_filter": True}
             if language_hint and language_hint != "auto":
                 kwargs["language"] = language_hint
 
@@ -95,18 +153,15 @@ class WhisperTranscriptionService:
 
 
 class AzureTranscriptionService:
-    """Azure Speech-to-Text — use for better accuracy on Nigerian English if budget allows."""
-
     def transcribe(self, audio_bytes: bytes, language_hint: str | None = None) -> TranscriptionResult:
         import azure.cognitiveservices.speech as speechsdk
-        import io
+        import time
 
         speech_config = speechsdk.SpeechConfig(
             subscription=settings.azure_speech_key,
             region=settings.azure_speech_region,
         )
         speech_config.speech_recognition_language = language_hint or "en-NG"
-        speech_config.enable_audio_logging()
 
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(audio_bytes)
@@ -114,8 +169,9 @@ class AzureTranscriptionService:
 
         try:
             audio_config = speechsdk.AudioConfig(filename=tmp_path)
-            recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-
+            recognizer = speechsdk.SpeechRecognizer(
+                speech_config=speech_config, audio_config=audio_config
+            )
             results = []
             done = False
 
@@ -128,24 +184,25 @@ class AzureTranscriptionService:
             recognizer.canceled.connect(stop_cb)
             recognizer.start_continuous_recognition()
 
-            import time
             while not done:
                 time.sleep(0.5)
             recognizer.stop_continuous_recognition()
 
             full_text = " ".join(results)
             return TranscriptionResult(
-                text=full_text,
-                segments=[],
+                text=full_text, segments=[],
                 detected_language=language_hint or "en-NG",
-                confidence=0.9,
-                word_count=len(full_text.split()),
+                confidence=0.9, word_count=len(full_text.split()),
             )
         finally:
             os.unlink(tmp_path)
 
 
 def get_transcription_service():
-    if settings.transcription_provider == "azure":
-        return AzureTranscriptionService()
-    return WhisperTranscriptionService()
+    providers = {
+        "groq": GroqTranscriptionService,
+        "azure": AzureTranscriptionService,
+        "whisper": WhisperTranscriptionService,
+    }
+    cls = providers.get(settings.transcription_provider, WhisperTranscriptionService)
+    return cls()
