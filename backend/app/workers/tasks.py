@@ -366,3 +366,9 @@ def ingest_zoom_recording_task(
 def send_test_mail_task(to_email: str) -> None:
     EmailNotificationService().send_test_mail(to_email=to_email)
     log.info("task.send_test_mail.success", to_email=to_email)
+
+
+@celery_app.task(name="app.workers.tasks.send_test_whatsapp_task")
+def send_test_whatsapp_task(to_number: str) -> None:
+    WhatsAppNotificationService().send_test_message(to_number=to_number)
+    log.info("task.send_test_whatsapp.success", to_number=to_number)

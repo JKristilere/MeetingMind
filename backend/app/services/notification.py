@@ -85,6 +85,18 @@ class WhatsAppNotificationService:
         except Exception as e:
             log.error("whatsapp.send_failed", error=str(e))
             return False
+    
+    def send_test_message(self, to_number: str) -> None:
+        """Send a test WhatsApp message. RAISES on failure so the caller sees the real error."""
+        if not all([settings.twilio_account_sid, settings.twilio_auth_token]):
+            raise RuntimeError("Twilio credentials are not configured")
+        from twilio.rest import Client
+        client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
+        client.messages.create(
+            body="This is a test message from MeetingMind confirming your WhatsApp notifications are working correctly.",
+            from_=settings.twilio_whatsapp_from,
+            to=f"whatsapp:{to_number}",
+        )
 
 
 # ── Email ─────────────────────────────────────────────────────────────────────

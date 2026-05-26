@@ -22,6 +22,7 @@ celery_app.conf.update(
         "app.workers.tasks.process_meeting_task": {"queue": "processing"},
         "app.workers.tasks.send_notifications_task": {"queue": "notifications"},
         "app.workers.tasks.send_test_mail_task": {"queue": "notifications"},
+        "app.workers.tasks.send_test_whatsapp_task": {"queue": "notifications"},
     },
     beat_schedule={},
 )

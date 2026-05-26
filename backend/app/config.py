@@ -3,12 +3,25 @@ from pathlib import Path
 from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Resolve .env from project root regardless of working directory
-_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+# Try candidate .env locations in priority order:
+#   1. Two levels up from this file — works when running locally from backend/
+#   2. Three levels up — works when running locally from the project root
+#   3. /run/secrets/.env — optional Docker secrets mount
+# In Docker, env vars are injected by Compose's env_file directive, so the
+# file path doesn't matter — pydantic_settings always reads real env vars too.
+_ENV_CANDIDATES = [
+    Path(__file__).resolve().parents[1] / ".env",   # backend/.env
+    Path(__file__).resolve().parents[2] / ".env",   # project-root/.env (local dev)
+]
+_ENV_FILE = next((p for p in _ENV_CANDIDATES if p.exists()), None)
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=str(_ENV_FILE), extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=str(_ENV_FILE) if _ENV_FILE else None,
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # App
     app_env: Literal["development", "staging", "production"] = "development"

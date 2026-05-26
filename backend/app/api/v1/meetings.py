@@ -309,3 +309,28 @@ async def debug_test_email_queued(current_user: CurrentUser, background_tasks: B
     """Queues a test email via Celery. Check Flower at :5555 to track the task."""
     background_tasks.add_task(send_test_mail_task.delay, to_email=current_user.email)
     return {"status": "queued", "to": current_user.email}
+
+@router.post("/debug/test-whatsapp", tags=["debug"])
+async def debug_test_whatsapp(current_user: CurrentUser):
+    """
+    Sends a test WhatsApp message synchronously. The real provider error is returned directly
+    in the response body.
+    """
+    from app.services.notification import WhatsAppNotificationService
+    try:
+        WhatsAppNotificationService().send_test_message(to_number=current_user.whatsapp_number)
+        return {"status": "sent", "to": current_user.whatsapp_number}
+    except Exception as exc:
+        return {
+            "status": "failed",
+            "to": current_user.whatsapp_number,
+            "error": str(exc),
+        }
+    
+
+@router.post("/debug/test-whatsapp/queued", tags=["debug"])
+async def debug_test_whatsapp_queued(current_user: CurrentUser, background_tasks: BackgroundTasks):
+    """Queues a test WhatsApp message via Celery. Check Flower at :5555 to track the task."""
+    from app.workers.tasks import send_test_whatsapp_task
+    background_tasks.add_task(send_test_whatsapp_task.delay, to_number=current_user.whatsapp_number)
+    return {"status": "queued", "to": current_user.whatsapp_number}
