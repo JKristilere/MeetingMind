@@ -43,6 +43,41 @@ class StorageService:
         )
         return key, size
 
+    def upload_audio_from_bytes(
+        self,
+        audio_bytes: bytes,
+        org_id: uuid.UUID,
+        filename: str,
+    ) -> tuple[str, int]:
+        """Store raw bytes as an audio file in MinIO.
+
+        Used by the Zoom (and future bot) ingest path where the file is
+        downloaded server-side rather than uploaded by the browser.
+        """
+        import io
+
+        ext = Path(filename).suffix.lower() or ".m4a"
+        key = f"{org_id}/{uuid.uuid4()}{ext}"
+        size = len(audio_bytes)
+        content_type_map = {
+            ".m4a":  "audio/mp4",
+            ".mp4":  "video/mp4",
+            ".mp3":  "audio/mpeg",
+            ".wav":  "audio/wav",
+            ".ogg":  "audio/ogg",
+            ".flac": "audio/flac",
+            ".webm": "audio/webm",
+        }
+        content_type = content_type_map.get(ext, "application/octet-stream")
+        self._client.put_object(
+            settings.minio_bucket_audio,
+            key,
+            io.BytesIO(audio_bytes),
+            size,
+            content_type=content_type,
+        )
+        return key, size
+
     def get_audio_url(self, key: str, expires_seconds: int = 3600) -> str:
         from datetime import timedelta
         return self._client.presigned_get_object(

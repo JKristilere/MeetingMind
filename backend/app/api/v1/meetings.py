@@ -54,6 +54,7 @@ async def create_meeting(
     language: Language = Form(Language.AUTO),
     description: str | None = Form(None),
     participant_ids: str | None = Form(None),
+    participant_names: str | None = Form(None),
     file: UploadFile = File(...),
 ):
     await _check_org_access(org_id, current_user.id, db)
@@ -78,7 +79,11 @@ async def create_meeting(
         source="upload",
     )
     db.add(meeting)
+    # Flush immediately so meeting.id, created_at, and updated_at are populated
+    # by the DB before we reference meeting.id in participant rows below.
+    await db.flush()
 
+    # ── Participants: org members referenced by UUID ───────────────────────────
     parsed_ids: list[uuid.UUID] = []
     if participant_ids:
         for raw in participant_ids.split(","):
@@ -89,32 +94,41 @@ async def create_meeting(
                 except ValueError:
                     raise ValidationError(f"Invalid UUID: {raw}")
 
-    # Add participants
     for p_id in parsed_ids:
         row_result = await db.execute(
-            select(User, OrganisationMember).join(OrganisationMember, OrganisationMember.user_id == User.id).where(
+            select(User, OrganisationMember)
+            .join(OrganisationMember, OrganisationMember.user_id == User.id)
+            .where(
                 OrganisationMember.organisation_id == org_id,
                 User.id == p_id,
             )
         )
         result = row_result.first()
-
         if not result:
             raise ValidationError(f"User {p_id} is not a member of the organisation")
 
-        # if not result.OrganisationMember.is_active:
-        #     raise ValidationError(f"User {p_id} is not active in the organisation")
+        db.add(MeetingParticipant(
+            meeting_id=meeting.id,
+            user_id=result.User.id,
+            notified_at=datetime.now(timezone.utc),
+            name=result.User.full_name,
+            email=result.User.email,
+            whatsapp_number=result.User.whatsapp_number,
+        ))
 
-        participant = MeetingParticipant(
-                meeting_id=meeting.id,
-                user_id=result.User.id,
-                notified_at=datetime.now(timezone.utc),
-                name=result.User.full_name,
-                email=result.User.email,
-                whatsapp_number=result.User.whatsapp_number,
-        )
-        db.add(participant)
-        await db.flush()
+    # ── Participants: free-form names (used by the Chrome extension) ───────────
+    if participant_names:
+        for entry in participant_names.split(","):
+            name = entry.strip()
+            if name:
+                db.add(MeetingParticipant(
+                    meeting_id=meeting.id,
+                    name=name,
+                ))
+
+    # One bulk flush for all participant rows, then refresh to return full object
+    await db.flush()
+    await db.refresh(meeting)
 
     background_tasks.add_task(process_meeting_task.delay, str(meeting.id))
     return meeting
@@ -154,7 +168,9 @@ async def list_meetings(
     )
 
 
-@router.get("/{org_id}/meetings/{meeting_id}", response_model=MeetingDetailResponse)
+@router.get("/{org_id}/meetings/{meeting_id}", 
+            # response_model=MeetingDetailResponse
+            )
 async def get_meeting(
     org_id: uuid.UUID,
     meeting_id: uuid.UUID,

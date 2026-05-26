@@ -97,6 +97,18 @@ class Settings(BaseSettings):
     paystack_public_key: str = ""
     paystack_webhook_secret: str = ""
 
+    # Zoom Integration
+    # Get these from Marketplace → your app → Feature → Event Subscriptions
+    zoom_webhook_secret_token: str = ""  # Secret Token shown on Event Subscriptions page
+    zoom_client_id: str = ""
+    zoom_client_secret: str = ""
+
+    # CORS — extra origins added to the default whitelist.
+    # Set to ["*"] to allow Chrome extensions and other first-party clients.
+    # Safe to use with Bearer-token auth because credentials (cookies) are not involved.
+    # Example .env value:  CORS_EXTRA_ORIGINS=["*"]
+    cors_extra_origins: list[str] = []
+
     # Feature flags
     enable_google_meet_bot: bool = False
     enable_zoom_bot: bool = False

@@ -271,6 +271,97 @@ def send_notifications_task(self, meeting_id: str):
         raise self.retry(exc=exc)
 
 
+@celery_app.task(
+    name="app.workers.tasks.ingest_zoom_recording_task",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+    soft_time_limit=600,   # 10 min: Zoom download + MinIO upload
+    time_limit=700,
+)
+def ingest_zoom_recording_task(
+    self,
+    meeting_id: str,
+    download_url: str,
+    access_token: str,
+    file_ext: str = "m4a",
+) -> None:
+    """Download a Zoom cloud recording, upload it to MinIO, then trigger processing.
+
+    The Zoom ``download_access_token`` is valid for approximately 60 minutes from
+    the moment the webhook fires, so this task should start promptly.
+
+    Steps
+    -----
+    1. GET ``{download_url}?access_token={access_token}`` from Zoom CDN.
+    2. Upload the raw bytes to MinIO via :meth:`StorageService.upload_audio_from_bytes`.
+    3. Patch ``meeting.audio_file_key`` so the main pipeline can download from MinIO.
+    4. Enqueue :func:`process_meeting_task` — identical to the upload path from here on.
+    """
+    import httpx
+
+    log.info("task.ingest_zoom.start", meeting_id=meeting_id)
+    engine = _get_sync_engine()
+
+    with Session(engine) as db:
+        result = db.execute(
+            select(Meeting).where(Meeting.id == uuid.UUID(meeting_id))
+        )
+        meeting = result.scalar_one_or_none()
+        if not meeting:
+            log.error("task.ingest_zoom.not_found", meeting_id=meeting_id)
+            return
+
+        try:
+            # ── Step 1: Download audio from Zoom ──────────────────────────────
+            # Zoom accepts the access_token as a query parameter.
+            url_with_token = f"{download_url}?access_token={access_token}"
+            log.info("task.ingest_zoom.downloading", meeting_id=meeting_id, url=download_url)
+
+            with httpx.Client(timeout=300.0, follow_redirects=True) as client:
+                response = client.get(url_with_token)
+                response.raise_for_status()
+                audio_bytes = response.content
+
+            log.info(
+                "task.ingest_zoom.downloaded",
+                meeting_id=meeting_id,
+                size_bytes=len(audio_bytes),
+            )
+
+            # ── Step 2: Upload to MinIO ────────────────────────────────────────
+            storage = StorageService()
+            safe_title = (meeting.title or "zoom-recording").replace("/", "-")
+            filename = f"{safe_title}.{file_ext.lstrip('.')}"
+            audio_key, size_bytes = storage.upload_audio_from_bytes(
+                audio_bytes,
+                meeting.organisation_id,
+                filename,
+            )
+            log.info(
+                "task.ingest_zoom.uploaded_to_minio",
+                meeting_id=meeting_id,
+                key=audio_key,
+            )
+
+            # ── Step 3: Patch meeting record ───────────────────────────────────
+            meeting.audio_file_key = audio_key
+            meeting.audio_size_bytes = size_bytes
+            meeting.original_filename = filename
+            db.commit()
+
+            # ── Step 4: Hand off to the main pipeline ──────────────────────────
+            process_meeting_task.delay(meeting_id)
+            log.info("task.ingest_zoom.success", meeting_id=meeting_id)
+
+        except Exception as exc:
+            meeting.status = MeetingStatus.FAILED
+            meeting.error_message = f"Zoom ingest failed: {exc}"
+            db.commit()
+            log.error("task.ingest_zoom.failed", meeting_id=meeting_id, error=str(exc))
+            raise self.retry(exc=exc)
+
+
 @celery_app.task(name="app.workers.tasks.send_test_mail_task")
 def send_test_mail_task(to_email: str) -> None:
     EmailNotificationService().send_test_mail(to_email=to_email)

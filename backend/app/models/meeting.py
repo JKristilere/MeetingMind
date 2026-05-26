@@ -62,6 +62,11 @@ class Meeting(Base):
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     source: Mapped[str] = mapped_column(String(30), default="upload")  # upload | google_meet | zoom | teams
 
+    # Zoom integration — stores the Zoom recording file UUID for deduplication
+    zoom_recording_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, unique=True, index=True
+    )
+
     # Processing results
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     key_decisions: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)

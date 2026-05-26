@@ -6,22 +6,47 @@ version: "3.9"
 #   redis      — Celery broker + result backend + cache
 #   minio      — S3-compatible object storage (audio files, transcripts)
 #   backend    — FastAPI application
-#   worker     — Celery worker (transcription + AI analysis)
+#   worker     — Celery worker (transcription + AI analysis + notifications)
 #   flower     — Celery monitoring dashboard
 #   ollama     — Local LLM (Llama 3.2) — optional, set LLM_PROVIDER=anthropic to skip
-#   frontend   — React (Vite) web app
-#   nginx      — Reverse proxy
+#   mailpit    — Dev SMTP server — web UI at http://localhost:8025
+#   frontend   — React (Vite) SPA (prod: nginx-served build; dev: Vite HMR on :5173)
+#   nginx      — Reverse proxy (prod only, not used in dev profile)
+#
+# Profiles:
+#   (default) — production-mode frontend build served via nginx
+#   dev        — frontend runs as Vite dev server with hot-module reload
+#
+# Email in production: set EMAIL_PROVIDER=resend and RESEND_API_KEY in .env
+# Email in development: EMAIL_PROVIDER=smtp (default), routed to Mailpit
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-backend-env: &backend-env
   env_file: .env
   environment:
+    # Docker service hostnames override .env values
     - POSTGRES_HOST=postgres
+    - POSTGRES_PORT=5432
     - REDIS_URL=redis://redis:6379/0
     - CELERY_BROKER_URL=redis://redis:6379/0
     - CELERY_RESULT_BACKEND=redis://redis:6379/1
     - MINIO_ENDPOINT=minio:9000
     - OLLAMA_BASE_URL=http://ollama:11434
+    # Email — dev default routes to Mailpit (no internet required)
+    # For production: set EMAIL_PROVIDER=resend and RESEND_API_KEY in .env
+    - EMAIL_PROVIDER=${EMAIL_PROVIDER:-smtp}
+    - RESEND_API_KEY=${RESEND_API_KEY:-}
+    - SMTP_HOST=${SMTP_HOST:-mailpit}
+    - SMTP_PORT=${SMTP_PORT:-1025}
+    - SMTP_USER=${SMTP_USER:-}
+    - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+    - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@meetingmind.app}
+    - SMTP_FROM_NAME=${SMTP_FROM_NAME:-MeetingMind}
+    - ENABLE_EMAIL_NOTIFICATIONS=${ENABLE_EMAIL_NOTIFICATIONS:-true}
+    # LLM keys
+    - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+    - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    - OPENAI_API_KEY=${OPENAI_API_KEY}
 
 services:
   # ── Infrastructure ──────────────────────────────────────────────────────────
@@ -31,10 +56,12 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-meetingmind}
       POSTGRES_USER: ${POSTGRES_USER:-meetingmind}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meetingmind_secret}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-meetingmind}"]
       interval: 10s
@@ -49,6 +76,8 @@ services:
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    ports:
+      - "6379:6379"   # exposed so local worker can connect
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -67,7 +96,8 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      - "9001:9001"   # MinIO console — accessible at http://localhost:9001
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO console — http://localhost:9001
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -92,6 +122,8 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+    ports:
+      - "8000:8000"
     command: >
       sh -c "
         alembic upgrade head &&
@@ -149,16 +181,52 @@ services:
     networks:
       - internal
 
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 500
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI — http://localhost:8025
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8025/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - internal
+
+  # ── Frontend — production (nginx-served static build) ───────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     restart: unless-stopped
-    environment:
-      - VITE_API_URL=/api/v1
     networks:
       - external
 
+  # ── Frontend — development (Vite HMR, profile: dev) ─────────────────────────
+  # Run with: docker compose --profile dev up frontend-dev
+  frontend-dev:
+    profiles: [dev]
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=/api/v1
+      - BACKEND_URL=http://backend:8000   # Docker service name — resolved on the internal network
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - "5173:5173"
+    networks:
+      - external
+      - internal   # needs internal network access to reach the backend service
+
+  # ── Nginx reverse proxy ─────────────────────────────────────────────────────
   nginx:
     build:
       context: ./nginx
@@ -180,6 +248,7 @@ volumes:
   minio_data:
   ollama_models:
   whisper_models:
+  frontend_node_modules:
 
 networks:
   internal:
