@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "MeetingMind Recorder",
+  "version": "1.0.0",
+  "description": "Record Google Meet and Zoom meetings and send them to your MeetingMind workspace for AI analysis, transcription, and action-item extraction.",
+
+  "permissions": [
+    "tabCapture",
+    "storage",
+    "offscreen",
+    "activeTab",
+    "tabs"
+  ],
+
+  "host_permissions": ["<all_urls>"],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "MeetingMind Recorder"
+  },
+
+  "options_page": "options/options.html",
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://meet.google.com/*",
+        "https://*.zoom.us/j/*",
+        "https://*.zoom.us/wc/*"
+      ],
+      "js": ["content/content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
