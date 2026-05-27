@@ -30,8 +30,7 @@ services:
     plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    start-render.sh: runs alembic migrations -> starts Celery (bg) -> uvicorn
-    startCommand: bash /app/start-render.sh
+    startCommand: bash /app/start-render.sh   # migrations -> celery (bg) -> uvicorn
     healthCheckPath: /health
 
     envVars:
