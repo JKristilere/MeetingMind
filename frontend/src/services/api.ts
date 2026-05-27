@@ -1,8 +1,10 @@
 import axios from 'axios'
 import type { AuthTokens, Meeting, Organisation, OrgMember, PaginatedResponse, User } from '../types'
 
+// In production (Vercel), VITE_API_URL points to the Render backend.
+// In local dev, the Vite proxy rewrites /api → localhost:8000.
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
   headers: { 'Content-Type': 'application/json' },
 })
 

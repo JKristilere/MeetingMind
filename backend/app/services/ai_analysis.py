@@ -1,6 +1,12 @@
 """
 AI analysis service — extracts structured intelligence from meeting transcripts.
-Supports Ollama (local/free), Anthropic Claude, OpenAI GPT-4.
+
+Providers (set via LLM_PROVIDER env var):
+  groq        — FREE, Llama 3.3-70B via Groq API. Best for free deployment.
+  ollama      — Local Ollama. Docker/VPS only.
+  anthropic   — Claude Sonnet. Highest quality. ~$0.02/meeting.
+  openai      — GPT-4o. Paid.
+  azure_openai— Azure OpenAI. Paid.
 
 The prompt is tuned for African business context:
   - Nigerian English idioms and expressions
@@ -66,6 +72,28 @@ class AnalysisResult:
     meeting_effectiveness_score: float = 5.0
     participants_mentioned: list[str] = field(default_factory=list)
     follow_up_date: str | None = None
+
+
+class GroqAnalysisService:
+    """
+    Groq API — free tier with Llama 3.3-70B.
+    Extremely fast inference (tokens/sec much faster than OpenAI).
+    Sign up free at console.groq.com — no credit card needed.
+    """
+
+    def analyse(self, transcript: str) -> AnalysisResult:
+        from groq import Groq
+        client = Groq(api_key=settings.groq_api_key)
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": ANALYSIS_PROMPT.format(transcript=transcript[:12000])},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+        )
+        return _parse_response(response.choices[0].message.content)
 
 
 class AnthropicAnalysisService:
@@ -152,6 +180,7 @@ def _parse_response(raw: str) -> AnalysisResult:
 
 def get_analysis_service():
     providers = {
+        "groq": GroqAnalysisService,
         "anthropic": AnthropicAnalysisService,
         "openai": OpenAIAnalysisService,
         "azure_openai": AzureOpenAIAnalysisService,
