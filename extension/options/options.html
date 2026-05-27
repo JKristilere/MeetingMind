@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MeetingMind Recorder — Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Page header ───────────────────────────────────────────────────────── -->
+  <div class="page-header">
+    <div class="logo">M</div>
+    <div>
+      <h1>MeetingMind Recorder</h1>
+      <p>Connect to your MeetingMind workspace</p>
+    </div>
+  </div>
+
+  <!-- ── Server URL ────────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      Server URL
+    </div>
+    <div class="form">
+      <div class="field">
+        <label for="serverUrl">MeetingMind instance URL</label>
+        <input type="url" id="serverUrl"
+               placeholder="https://meetingmind.yourcompany.com"
+               autocomplete="off" spellcheck="false">
+      </div>
+      <p class="hint">
+        This is the URL where your MeetingMind backend is deployed.
+        For local development use <code>http://localhost</code>.
+      </p>
+    </div>
+  </div>
+
+  <!-- ── Account ───────────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      Account
+    </div>
+
+    <!-- Logged-in view -->
+    <div id="loggedInView" class="hidden">
+      <div class="user-row" id="userRow">
+        <div class="avatar" id="userAvatar">?</div>
+        <div>
+          <div class="user-name" id="userName"></div>
+          <div class="user-email" id="userEmail"></div>
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn btn-danger-ghost" id="logoutBtn" style="width:100%">
+        Log out
+      </button>
+    </div>
+
+    <!-- Login form -->
+    <div id="loginView">
+      <div class="form">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="you@company.com" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div id="loginAlert" class="alert alert-error hidden"></div>
+        <button class="btn btn-primary" id="loginBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <polyline points="10 17 15 12 10 7"/>
+            <line x1="15" y1="12" x2="3" y2="12"/>
+          </svg>
+          <span id="loginBtnText">Log in</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Workspace ─────────────────────────────────────────────────────────── -->
+  <div class="card" id="workspaceCard" style="display:none">
+    <div class="card-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+        <line x1="8" y1="21" x2="16" y2="21"/>
+        <line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+      Active Workspace
+    </div>
+    <div class="form">
+      <div class="field">
+        <label for="orgSelect">Select workspace for recordings</label>
+        <select id="orgSelect"><option value="">— loading —</option></select>
+      </div>
+      <div id="saveAlert" class="alert hidden"></div>
+      <button class="btn btn-primary" id="saveBtn">Save Settings</button>
+    </div>
+  </div>
+
+  <!-- ── Info box ───────────────────────────────────────────────────────────── -->
+  <div class="hint" id="infoBox">
+    Recordings uploaded from this extension will appear in the selected workspace's
+    Meetings page and go through the full transcription + AI analysis pipeline.
+  </div>
+
+</div>
+
+<script src="options.js"></script>
+</body>
+</html>

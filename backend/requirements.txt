@@ -1,5 +1,5 @@
 # ── Web framework ──────────────────────────
-fastapi==0.115.5
+fastapi
 uvicorn[standard]==0.32.1
 python-multipart==0.0.12
 
@@ -22,25 +22,28 @@ boto3==1.35.83
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 authlib==1.3.2
-httpx==0.28.1
+httpx
 
 # ── Transcription ─────────────────────────
 faster-whisper==1.1.0
 azure-cognitiveservices-speech==1.43.0
 
 # ── AI / LLM ──────────────────────────────
-anthropic==0.40.0
-openai==1.57.4
-ollama==0.4.4
+groq==0.13.1              # Free LLM + Whisper API — recommended for free deployment
+anthropic
+openai
+ollama
 langchain==0.3.13
 langchain-anthropic==0.3.3
 langchain-openai==0.3.0
 
 # ── Notifications ─────────────────────────
 twilio==9.4.0
+resend==2.10.0
 
 # ── Utilities ─────────────────────────────
 pydantic==2.10.3
+pydantic[email]
 pydantic-settings==2.7.0
 python-dotenv==1.0.1
 structlog==24.4.0
@@ -52,4 +55,4 @@ ffmpeg-python==0.2.0
 pydub==0.25.1
 
 # ── Payments ──────────────────────────────
-paystackapi==0.2.0
+paystack-sdk==1.0.1

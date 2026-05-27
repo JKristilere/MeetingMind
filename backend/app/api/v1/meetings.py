@@ -1,6 +1,8 @@
 import uuid
 import math
-from typing import Annotated
+import smtplib
+import ssl
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, Query, BackgroundTasks
 from sqlalchemy import select, func, desc
@@ -9,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import CurrentUser, DB
 from app.config import settings
 from app.core.exceptions import NotFoundError, ForbiddenError, ValidationError, PlanLimitError
+from app.models.user import User
 from app.models.meeting import Meeting, MeetingStatus, ActionItem, MeetingParticipant, Language
 from app.models.organisation import OrganisationMember
 from app.schemas.meeting import (
@@ -22,7 +25,7 @@ from app.schemas.meeting import (
     ParticipantCreate,
 )
 from app.services.storage import StorageService
-from app.workers.tasks import process_meeting_task
+from app.workers.tasks import process_meeting_task, send_test_mail_task
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -50,6 +53,8 @@ async def create_meeting(
     title: str = Form(...),
     language: Language = Form(Language.AUTO),
     description: str | None = Form(None),
+    participant_ids: str | None = Form(None),
+    participant_names: str | None = Form(None),
     file: UploadFile = File(...),
 ):
     await _check_org_access(org_id, current_user.id, db)
@@ -74,7 +79,56 @@ async def create_meeting(
         source="upload",
     )
     db.add(meeting)
+    # Flush immediately so meeting.id, created_at, and updated_at are populated
+    # by the DB before we reference meeting.id in participant rows below.
     await db.flush()
+
+    # ── Participants: org members referenced by UUID ───────────────────────────
+    parsed_ids: list[uuid.UUID] = []
+    if participant_ids:
+        for raw in participant_ids.split(","):
+            raw = raw.strip()
+            if raw:
+                try:
+                    parsed_ids.append(uuid.UUID(raw))
+                except ValueError:
+                    raise ValidationError(f"Invalid UUID: {raw}")
+
+    for p_id in parsed_ids:
+        row_result = await db.execute(
+            select(User, OrganisationMember)
+            .join(OrganisationMember, OrganisationMember.user_id == User.id)
+            .where(
+                OrganisationMember.organisation_id == org_id,
+                User.id == p_id,
+            )
+        )
+        result = row_result.first()
+        if not result:
+            raise ValidationError(f"User {p_id} is not a member of the organisation")
+
+        db.add(MeetingParticipant(
+            meeting_id=meeting.id,
+            user_id=result.User.id,
+            notified_at=datetime.now(timezone.utc),
+            name=result.User.full_name,
+            email=result.User.email,
+            whatsapp_number=result.User.whatsapp_number,
+        ))
+
+    # ── Participants: free-form names (used by the Chrome extension) ───────────
+    if participant_names:
+        for entry in participant_names.split(","):
+            name = entry.strip()
+            if name:
+                db.add(MeetingParticipant(
+                    meeting_id=meeting.id,
+                    name=name,
+                ))
+
+    # One bulk flush for all participant rows, then refresh to return full object
+    await db.flush()
+    await db.refresh(meeting)
 
     background_tasks.add_task(process_meeting_task.delay, str(meeting.id))
     return meeting
@@ -114,7 +168,9 @@ async def list_meetings(
     )
 
 
-@router.get("/{org_id}/meetings/{meeting_id}", response_model=MeetingDetailResponse)
+@router.get("/{org_id}/meetings/{meeting_id}", 
+            # response_model=MeetingDetailResponse
+            )
 async def get_meeting(
     org_id: uuid.UUID,
     meeting_id: uuid.UUID,
@@ -227,3 +283,54 @@ async def add_participant(
     db.add(participant)
     await db.flush()
     return {"id": str(participant.id), "name": participant.name}
+
+
+@router.post("/debug/test-email", tags=["debug"])
+async def debug_test_email(current_user: CurrentUser):
+    """
+    Sends a test email synchronously. The real SMTP/Resend error is returned directly
+    in the response body — no need to dig through logs.
+    """
+    from app.services.notification import EmailNotificationService
+    try:
+        EmailNotificationService().send_test_mail(to_email=current_user.email)
+        return {"status": "sent", "provider": settings.email_provider, "to": current_user.email}
+    except Exception as exc:
+        return {
+            "status": "failed",
+            "provider": settings.email_provider,
+            "to": current_user.email,
+            "error": str(exc),
+        }
+
+
+@router.post("/debug/test-email/queued", tags=["debug"])
+async def debug_test_email_queued(current_user: CurrentUser, background_tasks: BackgroundTasks):
+    """Queues a test email via Celery. Check Flower at :5555 to track the task."""
+    background_tasks.add_task(send_test_mail_task.delay, to_email=current_user.email)
+    return {"status": "queued", "to": current_user.email}
+
+@router.post("/debug/test-whatsapp", tags=["debug"])
+async def debug_test_whatsapp(current_user: CurrentUser):
+    """
+    Sends a test WhatsApp message synchronously. The real provider error is returned directly
+    in the response body.
+    """
+    from app.services.notification import WhatsAppNotificationService
+    try:
+        WhatsAppNotificationService().send_test_message(to_number=current_user.whatsapp_number)
+        return {"status": "sent", "to": current_user.whatsapp_number}
+    except Exception as exc:
+        return {
+            "status": "failed",
+            "to": current_user.whatsapp_number,
+            "error": str(exc),
+        }
+    
+
+@router.post("/debug/test-whatsapp/queued", tags=["debug"])
+async def debug_test_whatsapp_queued(current_user: CurrentUser, background_tasks: BackgroundTasks):
+    """Queues a test WhatsApp message via Celery. Check Flower at :5555 to track the task."""
+    from app.workers.tasks import send_test_whatsapp_task
+    background_tasks.add_task(send_test_whatsapp_task.delay, to_number=current_user.whatsapp_number)
+    return {"status": "queued", "to": current_user.whatsapp_number}

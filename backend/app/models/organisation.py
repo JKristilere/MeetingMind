@@ -29,7 +29,7 @@ class Plan(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(50), unique=True)
-    tier: Mapped[PlanTier] = mapped_column(SAEnum(PlanTier))
+    tier: Mapped[PlanTier] = mapped_column(SAEnum(PlanTier, values_callable=lambda x: [e.value for e in x]))
     price_kobo: Mapped[int] = mapped_column(Integer)  # Price in Naira kobo (100 kobo = ₦1)
     max_users: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     max_meetings_per_month: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -69,7 +69,7 @@ class OrganisationMember(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organisation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organisations.id", ondelete="CASCADE"))
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    role: Mapped[MemberRole] = mapped_column(SAEnum(MemberRole), default=MemberRole.MEMBER)
+    role: Mapped[MemberRole] = mapped_column(SAEnum(MemberRole, values_callable=lambda x: [e.value for e in x]), default=MemberRole.MEMBER)
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 

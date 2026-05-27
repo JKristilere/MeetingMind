@@ -30,10 +30,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_cors_origins: list[str] = [
+    settings.app_frontend_url,
+    "http://localhost:5173",
+    "http://localhost:3000",
+    *settings.cors_extra_origins,
+]
+# "credentials" (cookies) cannot be sent to a wildcard origin — use Bearer tokens instead
+_allow_credentials = "*" not in _cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.app_frontend_url, "http://localhost:5173", "http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

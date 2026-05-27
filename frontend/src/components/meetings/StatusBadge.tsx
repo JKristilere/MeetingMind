@@ -1,21 +1,21 @@
 import type { MeetingStatus } from '../../types'
 
-const config: Record<MeetingStatus, { label: string; classes: string }> = {
-  pending: { label: 'Pending', classes: 'bg-gray-100 text-gray-700' },
-  uploading: { label: 'Uploading', classes: 'bg-blue-100 text-blue-700' },
-  processing: { label: 'Processing', classes: 'bg-yellow-100 text-yellow-700' },
-  transcribing: { label: 'Transcribing', classes: 'bg-purple-100 text-purple-700' },
-  analysing: { label: 'Analysing', classes: 'bg-indigo-100 text-indigo-700' },
-  completed: { label: 'Completed', classes: 'bg-green-100 text-green-700' },
-  failed: { label: 'Failed', classes: 'bg-red-100 text-red-700' },
+const config: Record<MeetingStatus, { label: string; classes: string; pulse?: boolean }> = {
+  pending:      { label: 'Pending',      classes: 'bg-slate-100 text-slate-600'    },
+  uploading:    { label: 'Uploading',    classes: 'bg-sky-100 text-sky-700',         pulse: true },
+  processing:   { label: 'Processing',   classes: 'bg-amber-100 text-amber-700',     pulse: true },
+  transcribing: { label: 'Transcribing', classes: 'bg-violet-100 text-violet-700',   pulse: true },
+  analysing:    { label: 'Analysing AI', classes: 'bg-indigo-100 text-indigo-700',   pulse: true },
+  completed:    { label: 'Completed',    classes: 'bg-emerald-100 text-emerald-700' },
+  failed:       { label: 'Failed',       classes: 'bg-red-100 text-red-700'         },
 }
 
 export default function StatusBadge({ status }: { status: MeetingStatus }) {
-  const { label, classes } = config[status] ?? config.pending
+  const { label, classes, pulse } = config[status] ?? config.pending
   return (
     <span className={`status-badge ${classes}`}>
-      {['processing', 'transcribing', 'analysing'].includes(status) && (
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-current mr-1.5 animate-pulse" />
+      {pulse && (
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
       )}
       {label}
     </span>

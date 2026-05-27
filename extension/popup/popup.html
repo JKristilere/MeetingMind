@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=320">
+  <title>MeetingMind Recorder</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <div class="header">
+    <div class="header-logo">M</div>
+    <span class="header-title">MeetingMind Recorder</span>
+    <button class="settings-btn" id="settingsBtn" title="Open settings">
+      <!-- gear icon (inline SVG to avoid file dep) -->
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06
+                 a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09
+                 A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83
+                 l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09
+                 A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83
+                 l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09
+                 a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83
+                 l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09
+                 a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="body">
+
+    <!-- ── State: not configured ───────────────────────────────────────────── -->
+    <div class="state-card" id="stateNotConfigured">
+      <div class="empty-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 2H3v16h5l3 3 3-3h5V2z"/>
+          <line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/>
+        </svg>
+      </div>
+      <p class="empty-label">Setup required</p>
+      <p class="empty-sub">
+        Enter your MeetingMind server URL and log in to start recording meetings.
+      </p>
+      <button class="btn btn-primary" id="openOptionsBtn">
+        ⚙ Open Settings
+      </button>
+    </div>
+
+    <!-- ── State: no meeting detected ─────────────────────────────────────── -->
+    <div class="state-card" id="stateNoMeeting">
+      <div class="empty-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="23 7 16 12 23 17 23 7"/>
+          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+        </svg>
+      </div>
+      <p class="empty-label">No meeting detected</p>
+      <p class="empty-sub">
+        Open a <strong>Google Meet</strong> or <strong>Zoom</strong> meeting tab,
+        then click the extension icon to start recording.
+      </p>
+      <div style="display:flex;gap:8px">
+        <a href="https://meet.google.com" target="_blank" class="btn btn-ghost" style="flex:1;text-decoration:none">
+          Meet
+        </a>
+        <a href="https://app.zoom.us/wc" target="_blank" class="btn btn-ghost" style="flex:1;text-decoration:none">
+          Zoom
+        </a>
+      </div>
+    </div>
+
+    <!-- ── State: idle + meeting detected ─────────────────────────────────── -->
+    <div class="state-card" id="stateIdle">
+      <div class="meeting-badge">
+        <div class="platform-dot"></div>
+        <span class="meeting-name" id="idleMeetingName">Meeting</span>
+        <span class="platform-chip" id="idlePlatformChip">Meet</span>
+      </div>
+
+      <div class="field">
+        <label for="titleInput">Meeting Title</label>
+        <input type="text" id="titleInput" placeholder="Q4 Sales Review…" maxlength="200">
+      </div>
+
+      <div class="field">
+        <label for="langSelect">Language</label>
+        <select id="langSelect">
+          <option value="auto">Auto-detect</option>
+          <option value="en">English (Nigerian)</option>
+          <option value="pcm">Nigerian Pidgin</option>
+          <option value="yo">Yoruba</option>
+          <option value="ig">Igbo</option>
+          <option value="ha">Hausa</option>
+          <option value="fr">French</option>
+          <option value="sw">Swahili</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="participantsInput">
+          Participants
+          <span class="label-optional">(optional)</span>
+        </label>
+        <input
+          type="text"
+          id="participantsInput"
+          placeholder="Alice, Bob, Charlie…"
+          maxlength="500"
+        >
+        <p class="field-hint">Names, comma-separated — they'll appear on the meeting record</p>
+      </div>
+
+      <div id="idleError" class="error-text" style="display:none"></div>
+
+      <button class="btn btn-primary" id="startBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="12" cy="12" r="4"/>
+        </svg>
+        Start Recording
+      </button>
+    </div>
+
+    <!-- ── State: recording ────────────────────────────────────────────────── -->
+    <div class="state-card" id="stateRecording">
+      <div class="meeting-badge">
+        <div class="platform-dot"></div>
+        <span class="meeting-name" id="recMeetingName">Meeting</span>
+        <span class="platform-chip" id="recPlatformChip">Meet</span>
+      </div>
+
+      <div class="timer-wrap">
+        <div class="rec-dot"></div>
+        <span class="timer-text" id="timerDisplay">0:00:00</span>
+      </div>
+
+      <p class="status-sub">Recording in progress — audio is captured from your browser tab.</p>
+
+      <button class="btn btn-danger" id="stopBtn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="3" y="3" width="18" height="18" rx="3"/>
+        </svg>
+        Stop &amp; Upload
+      </button>
+    </div>
+
+    <!-- ── State: uploading ────────────────────────────────────────────────── -->
+    <div class="state-card" id="stateUploading">
+      <div class="status-icon uploading">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+             stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round">
+          <polyline points="16 16 12 12 8 16"/>
+          <line x1="12" y1="12" x2="12" y2="21"/>
+          <path d="M20.4 6A5 5 0 0 0 16 4a8 8 0 0 0-15.6 2.4A5 5 0 0 0 4 21"/>
+        </svg>
+      </div>
+      <p class="status-label">Uploading…</p>
+      <p class="status-sub">Sending your recording to MeetingMind.<br>This may take a moment.</p>
+    </div>
+
+    <!-- ── State: done ──────────────────────────────────────────────────────── -->
+    <div class="state-card" id="stateDone">
+      <div class="status-icon done">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+             stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <p class="status-label">Upload complete!</p>
+      <p class="status-sub">
+        Your meeting is being transcribed and analysed.<br>
+        Results will be in your dashboard in a few minutes.
+      </p>
+      <button class="btn btn-primary" id="viewMeetingBtn">
+        View Meeting →
+      </button>
+    </div>
+
+    <!-- ── State: error ────────────────────────────────────────────────────── -->
+    <div class="state-card" id="stateError">
+      <div class="status-icon error">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+             stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <p class="status-label">Something went wrong</p>
+      <p class="error-text" id="errorMessage">Unknown error</p>
+      <button class="btn btn-ghost" id="retryBtn">Try again</button>
+    </div>
+
+  </div><!-- /body -->
+
+  <script src="popup.js"></script>
+</body>
+</html>

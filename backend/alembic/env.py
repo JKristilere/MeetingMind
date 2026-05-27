@@ -1,8 +1,13 @@
 import os
 from logging.config import fileConfig
+from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 from alembic import context
+
+# Load .env when running alembic locally (outside Docker)
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 config = context.config
 
@@ -12,7 +17,7 @@ if config.config_file_name is not None:
 # Override sqlalchemy.url from environment
 db_url = (
     f"postgresql://{os.environ.get('POSTGRES_USER', 'meetingmind')}:"
-    f"{os.environ.get('POSTGRES_PASSWORD', 'meetingmind_secret')}@"
+    f"{os.environ.get('POSTGRES_PASSWORD', 'admin123')}@"
     f"{os.environ.get('POSTGRES_HOST', 'postgres')}:"
     f"{os.environ.get('POSTGRES_PORT', '5432')}/"
     f"{os.environ.get('POSTGRES_DB', 'meetingmind')}"

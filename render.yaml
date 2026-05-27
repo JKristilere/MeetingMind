@@ -1,0 +1,143 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# MeetingMind — Render Blueprint
+# https://render.com/docs/blueprint-spec
+#
+# ONE free web service runs BOTH the FastAPI API and the Celery worker together
+# (via start-render.sh) to avoid needing a paid background-worker service.
+#
+# Memory budget on Render free (512 MB):
+#   FastAPI + uvicorn  ~120 MB
+#   Celery worker      ~120 MB
+#   asyncpg pool       ~20 MB
+#   Headroom           ~50 MB
+#   Total              ~310 MB  ✔
+#
+# Requires Docker because the backend needs ffmpeg + libmagic1 (system deps).
+#
+# Set up these free external services FIRST (see DEPLOYMENT.md):
+#   PostgreSQL  →  Neon      https://neon.tech
+#   Redis       →  Upstash   https://upstash.com
+#   Storage     →  Cloudflare R2   https://dash.cloudflare.com
+#   LLM/ASR     →  Groq      https://console.groq.com
+#   Email       →  Resend    https://resend.com  (optional, 3 K emails/month)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  - type: web
+    name: meetingmind-api
+    env: docker
+    region: oregon          # change to frankfurt for European users
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # start-render.sh: runs alembic migrations → starts Celery (bg) → uvicorn
+    startCommand: bash /app/start-render.sh
+    healthCheckPath: /health
+
+    envVars:
+      # ── App ────────────────────────────────────────────────────────────────
+      - key: APP_ENV
+        value: production
+      - key: APP_SECRET_KEY
+        generateValue: true          # Render generates a cryptographically-random value
+      - key: JWT_SECRET_KEY
+        generateValue: true
+
+      # ── Database — Neon (https://neon.tech) ────────────────────────────────
+      # Copy the Neon connection string, change the scheme, add ?ssl=require:
+      #   FROM  postgresql://user:pass@ep-xxx.region.aws.neon.tech/dbname
+      #   TO    postgresql+asyncpg://user:pass@ep-xxx.region.aws.neon.tech/dbname?ssl=require
+      - key: DATABASE_URL_OVERRIDE
+        sync: false                  # paste into Render dashboard → Environment
+
+      # ── Redis — Upstash (https://upstash.com) ─────────────────────────────
+      # Use the TLS (rediss://) URL from your Upstash console.
+      # All three variables get the SAME Upstash URL.
+      - key: REDIS_URL
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
+
+      # ── Storage — Cloudflare R2 ────────────────────────────────────────────
+      - key: STORAGE_PROVIDER
+        value: r2
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_AUDIO
+        value: meetingmind-audio
+      - key: R2_BUCKET_TRANSCRIPTS
+        value: meetingmind-transcripts
+
+      # ── Groq — free LLM (Llama 3.3 70B) + free Whisper ───────────────────
+      - key: LLM_PROVIDER
+        value: groq
+      - key: TRANSCRIPTION_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_WHISPER_MODEL
+        value: whisper-large-v3
+
+      # ── Email — Resend (https://resend.com, free 3 K emails/month) ─────────
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        value: noreply@meetingmind.app
+      - key: SMTP_FROM_NAME
+        value: MeetingMind
+
+      # ── CORS / URLs ────────────────────────────────────────────────────────
+      # Step 1: deploy without these; Render assigns a URL like
+      #         https://meetingmind-api.onrender.com
+      # Step 2: deploy frontend on Vercel; note the Vercel URL.
+      # Step 3: come back here and set both values, then redeploy.
+      - key: APP_BACKEND_URL
+        sync: false                  # e.g. https://meetingmind-api.onrender.com
+      - key: APP_FRONTEND_URL
+        sync: false                  # e.g. https://meetingmind.vercel.app
+
+      # ── Feature flags ──────────────────────────────────────────────────────
+      - key: ENABLE_EMAIL_NOTIFICATIONS
+        value: "true"
+      - key: ENABLE_WHATSAPP_NOTIFICATIONS
+        value: "false"               # enable after adding Twilio creds below
+
+      # ── Optional: Twilio WhatsApp ──────────────────────────────────────────
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        value: "whatsapp:+14155238886"
+
+      # ── Optional: Google OAuth ─────────────────────────────────────────────
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # ── Optional: Paystack billing ─────────────────────────────────────────
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+
+      # ── Optional: Zoom integration ─────────────────────────────────────────
+      - key: ZOOM_WEBHOOK_SECRET_TOKEN
+        sync: false
+      - key: ZOOM_CLIENT_ID
+        sync: false
+      - key: ZOOM_CLIENT_SECRET
+        sync: false
