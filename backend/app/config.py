@@ -36,8 +36,16 @@ class Settings(BaseSettings):
     postgres_user: str = "meetingmind"
     postgres_password: str = "meetingmind_secret"
 
+    # Full DSN override — paste your Neon / Supabase / any cloud Postgres URL here.
+    # Must use the asyncpg driver prefix:
+    #   postgresql+asyncpg://user:pass@host/db?ssl=require
+    # When set, the individual POSTGRES_* variables above are ignored.
+    database_url_override: str = ""
+
     @property
     def database_url(self) -> str:
+        if self.database_url_override:
+            return self.database_url_override
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
@@ -45,6 +53,11 @@ class Settings(BaseSettings):
 
     @property
     def database_url_sync(self) -> str:
+        if self.database_url_override:
+            # Convert asyncpg → psycopg2 for Alembic sync migrations
+            return self.database_url_override.replace(
+                "postgresql+asyncpg://", "postgresql://"
+            ).replace("?ssl=require", "?sslmode=require")
         return (
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
