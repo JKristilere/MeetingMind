@@ -31,6 +31,8 @@ export type MeetingStatus =
   | 'completed'
   | 'failed'
 
+export type MeetingSource = 'upload' | 'zoom' | 'google_meet' | 'teams'
+
 export interface ActionItem {
   id: string
   title: string
@@ -72,13 +74,14 @@ export interface Meeting {
   scheduled_at?: string
   started_at?: string
   ended_at?: string
-  source: string
+  source: MeetingSource
   summary?: string
   key_decisions?: KeyDecision[]
   next_steps?: string[]
   topics_discussed?: string[]
   sentiment?: string
   meeting_effectiveness_score?: number
+  error_message?: string
   host_id: string
   organisation_id: string
   created_at: string
@@ -100,6 +103,16 @@ export interface Participant {
   email?: string
   whatsapp_number?: string
   notified_at?: string
+}
+
+export interface OrgMember {
+  id: string          // membership record id
+  user_id: string
+  full_name: string
+  email: string
+  avatar_url?: string
+  role: string
+  joined_at: string
 }
 
 export interface PaginatedResponse<T> {

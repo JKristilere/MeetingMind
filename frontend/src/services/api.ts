@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AuthTokens, Meeting, Organisation, PaginatedResponse, User } from '../types'
+import type { AuthTokens, Meeting, Organisation, OrgMember, PaginatedResponse, User } from '../types'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -44,7 +44,19 @@ export const authApi = {
   login: (email: string, password: string) =>
     api.post<AuthTokens>('/auth/login', { email, password }),
 
-  me: () => api.get<User>('/auth/me'),
+  // Backend exposes current user at /users/me (not /auth/me)
+  me: () => api.get<User>('/users/me'),
+}
+
+// ── Users ──────────────────────────────────────────────────────────────
+export const userApi = {
+  me: () => api.get<User>('/users/me'),
+  update: (data: {
+    full_name?: string
+    phone?: string
+    whatsapp_number?: string
+    notification_prefs?: { whatsapp?: boolean; email?: boolean; in_app?: boolean }
+  }) => api.patch<User>('/users/me', data),
 }
 
 // ── Organisations ─────────────────────────────────────────────────────
@@ -55,15 +67,17 @@ export const orgApi = {
     api.post<Organisation>('/organisations', data),
   update: (id: string, data: Partial<Organisation>) =>
     api.patch<Organisation>(`/organisations/${id}`, data),
-  members: (id: string) => api.get<unknown[]>(`/organisations/${id}/members`),
+  members: (id: string) => api.get<OrgMember[]>(`/organisations/${id}/members`),
   inviteMember: (id: string, email: string, role = 'member') =>
     api.post(`/organisations/${id}/members/invite`, { email, role }),
 }
 
 // ── Meetings ──────────────────────────────────────────────────────────
 export const meetingApi = {
-  list: (orgId: string, params?: { page?: number; page_size?: number; status?: string; search?: string }) =>
-    api.get<PaginatedResponse<Meeting>>(`/meetings/${orgId}/meetings`, { params }),
+  list: (
+    orgId: string,
+    params?: { page?: number; page_size?: number; status?: string; search?: string },
+  ) => api.get<PaginatedResponse<Meeting>>(`/meetings/${orgId}/meetings`, { params }),
 
   get: (orgId: string, meetingId: string) =>
     api.get<Meeting>(`/meetings/${orgId}/meetings/${meetingId}`),
@@ -82,8 +96,18 @@ export const meetingApi = {
   delete: (orgId: string, meetingId: string) =>
     api.delete(`/meetings/${orgId}/meetings/${meetingId}`),
 
-  updateActionItem: (orgId: string, meetingId: string, itemId: string, data: Record<string, unknown>) =>
-    api.patch(`/meetings/${orgId}/meetings/${meetingId}/action-items/${itemId}`, data),
+  updateActionItem: (
+    orgId: string,
+    meetingId: string,
+    itemId: string,
+    data: Record<string, unknown>,
+  ) => api.patch(`/meetings/${orgId}/meetings/${meetingId}/action-items/${itemId}`, data),
+
+  addParticipant: (
+    orgId: string,
+    meetingId: string,
+    data: { name: string; email?: string; whatsapp_number?: string },
+  ) => api.post(`/meetings/${orgId}/meetings/${meetingId}/participants`, data),
 }
 
 export default api

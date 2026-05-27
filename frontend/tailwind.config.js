@@ -5,17 +5,32 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          500: '#3b82f6',
-          600: '#1a56db',
-          700: '#1d4ed8',
-          900: '#1e3a8a',
+          50:  '#eef2ff',
+          100: '#e0e7ff',
+          200: '#c7d2fe',
+          300: '#a5b4fc',
+          400: '#818cf8',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca',
+          800: '#3730a3',
+          900: '#312e81',
+          950: '#1e1b4b',
         },
-        naira: '#008751', // Nigerian green
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        mono: [
+          'ui-monospace', 'SFMono-Regular', 'SF Mono', 'Menlo',
+          'Monaco', 'Consolas', '"Liberation Mono"', 'monospace',
+        ],
+      },
+      letterSpacing: {
+        'widest-plus': '0.14em',
+      },
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'spin-slow':  'spin 8s linear infinite',
       },
     },
   },
