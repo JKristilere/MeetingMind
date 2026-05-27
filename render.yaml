@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# MeetingMind — Render Blueprint
+# MeetingMind -- Render Blueprint
 # https://render.com/docs/blueprint-spec
 #
 # ONE free web service runs BOTH the FastAPI API and the Celery worker together
@@ -10,16 +10,16 @@
 #   Celery worker      ~120 MB
 #   asyncpg pool       ~20 MB
 #   Headroom           ~50 MB
-#   Total              ~310 MB  ✔
+#   Total              ~310 MB  OK
 #
 # Requires Docker because the backend needs ffmpeg + libmagic1 (system deps).
 #
 # Set up these free external services FIRST (see DEPLOYMENT.md):
-#   PostgreSQL  →  Neon      https://neon.tech
-#   Redis       →  Upstash   https://upstash.com
-#   Storage     →  Cloudflare R2   https://dash.cloudflare.com
-#   LLM/ASR     →  Groq      https://console.groq.com
-#   Email       →  Resend    https://resend.com  (optional, 3 K emails/month)
+#   PostgreSQL  ->  Neon         https://neon.tech
+#   Redis       ->  Upstash      https://upstash.com
+#   Storage     ->  Backblaze B2 https://www.backblaze.com/sign-up/cloud-storage
+#   LLM/ASR     ->  Groq         https://console.groq.com
+#   Email       ->  Resend       https://resend.com  (optional, 3 K emails/month)
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -30,7 +30,7 @@ services:
     plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    # start-render.sh: runs alembic migrations → starts Celery (bg) → uvicorn
+    # start-render.sh: runs alembic migrations -> starts Celery (bg) -> uvicorn
     startCommand: bash /app/start-render.sh
     healthCheckPath: /health
 
@@ -43,14 +43,14 @@ services:
       - key: JWT_SECRET_KEY
         generateValue: true
 
-      # ── Database — Neon (https://neon.tech) ────────────────────────────────
+      # ── Database -- Neon (https://neon.tech) ───────────────────────────────
       # Copy the Neon connection string, change the scheme, add ?ssl=require:
       #   FROM  postgresql://user:pass@ep-xxx.region.aws.neon.tech/dbname
       #   TO    postgresql+asyncpg://user:pass@ep-xxx.region.aws.neon.tech/dbname?ssl=require
       - key: DATABASE_URL_OVERRIDE
-        sync: false                  # paste into Render dashboard → Environment
+        sync: false                  # paste into Render dashboard -> Environment
 
-      # ── Redis — Upstash (https://upstash.com) ─────────────────────────────
+      # ── Redis -- Upstash (https://upstash.com) ────────────────────────────
       # Use the TLS (rediss://) URL from your Upstash console.
       # All three variables get the SAME Upstash URL.
       - key: REDIS_URL
@@ -60,21 +60,24 @@ services:
       - key: CELERY_RESULT_BACKEND
         sync: false
 
-      # ── Storage — Cloudflare R2 ────────────────────────────────────────────
+      # ── Storage -- Backblaze B2 (https://www.backblaze.com/sign-up/cloud-storage)
+      # No credit card required. Free: 10 GB storage, 1 GB download/day.
+      # B2_ENDPOINT format: https://s3.{region}.backblazeb2.com
+      #   (find the region on the bucket detail page in the B2 console)
       - key: STORAGE_PROVIDER
-        value: r2
-      - key: R2_ACCOUNT_ID
-        sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
-      - key: R2_BUCKET_AUDIO
+        value: b2
+      - key: B2_ENDPOINT
+        sync: false                  # e.g. https://s3.us-west-004.backblazeb2.com
+      - key: B2_KEY_ID
+        sync: false                  # Application Key ID
+      - key: B2_APPLICATION_KEY
+        sync: false                  # Application Key
+      - key: B2_BUCKET_AUDIO
         value: meetingmind-audio
-      - key: R2_BUCKET_TRANSCRIPTS
+      - key: B2_BUCKET_TRANSCRIPTS
         value: meetingmind-transcripts
 
-      # ── Groq — free LLM (Llama 3.3 70B) + free Whisper ───────────────────
+      # ── Groq -- free LLM (Llama 3.3 70B) + free Whisper ──────────────────
       - key: LLM_PROVIDER
         value: groq
       - key: TRANSCRIPTION_PROVIDER
@@ -86,7 +89,7 @@ services:
       - key: GROQ_WHISPER_MODEL
         value: whisper-large-v3
 
-      # ── Email — Resend (https://resend.com, free 3 K emails/month) ─────────
+      # ── Email -- Resend (https://resend.com, free 3 K emails/month) ────────
       - key: EMAIL_PROVIDER
         value: resend
       - key: RESEND_API_KEY

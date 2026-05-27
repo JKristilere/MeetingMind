@@ -108,11 +108,23 @@ class Settings(BaseSettings):
     azure_openai_deployment: str = ""
 
     # Storage
-    # "minio" = self-hosted MinIO (Docker/VPS)
-    # "r2"    = Cloudflare R2 (free 10 GB/month — best for portfolio)
-    # "s3"    = AWS S3
+    # "minio" = self-hosted MinIO (Docker/VPS -- default for local dev)
+    # "b2"    = Backblaze B2 (free 10 GB storage + 1 GB/day download -- best for free deployment)
+    # "r2"    = Cloudflare R2 (free 10 GB/month, no egress fees -- requires credit card)
     storage_provider: str = "minio"
-    # Cloudflare R2 — set when storage_provider=r2
+
+    # Backblaze B2 -- set when storage_provider=b2
+    # Sign up (no credit card): https://www.backblaze.com/sign-up/cloud-storage
+    # Free tier: 10 GB storage, 1 GB download/day, 2 500 API calls/day
+    # Endpoint format: https://s3.{region}.backblazeb2.com
+    #   (region is shown on the bucket detail page, e.g. us-west-004, eu-central-003)
+    b2_endpoint: str = ""              # e.g. https://s3.us-west-004.backblazeb2.com
+    b2_key_id: str = ""               # Application Key ID (not your account ID)
+    b2_application_key: str = ""      # Application Key
+    b2_bucket_audio: str = "meetingmind-audio"
+    b2_bucket_transcripts: str = "meetingmind-transcripts"
+
+    # Cloudflare R2 -- set when storage_provider=r2
     r2_account_id: str = ""
     r2_access_key_id: str = ""
     r2_secret_access_key: str = ""
