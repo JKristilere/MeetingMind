@@ -55,6 +55,13 @@ def _b2_client():
     boto3 needs the region string extracted explicitly -- "auto" is not accepted.
     """
     endpoint = settings.b2_endpoint  # e.g. https://s3.us-west-004.backblazeb2.com
+    if not endpoint:
+        raise RuntimeError(
+            "B2_ENDPOINT is not configured. "
+            "Set B2_ENDPOINT=https://s3.<region>.backblazeb2.com in your .env file."
+        )
+    if not endpoint.startswith(("http://", "https://")):
+        endpoint = "https://" + endpoint
     match = re.search(r"s3\.([^.]+\.[^.]+)\.backblazeb2\.com", endpoint)
     region = match.group(1) if match else "us-west-004"
     return _get_s3_client(

@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     # "minio" = self-hosted MinIO (Docker/VPS -- default for local dev)
     # "b2"    = Backblaze B2 (free 10 GB storage + 1 GB/day download -- best for free deployment)
     # "r2"    = Cloudflare R2 (free 10 GB/month, no egress fees -- requires credit card)
-    storage_provider: str = "minio"
+    storage_provider: str = "b2"
 
     # Backblaze B2 -- set when storage_provider=b2
     # Sign up (no credit card): https://www.backblaze.com/sign-up/cloud-storage
