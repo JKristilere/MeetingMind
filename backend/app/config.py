@@ -144,13 +144,13 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_whatsapp_from: str = "whatsapp:+14155238886"
     # Email — "resend" for production (REST API, no SMTP), "smtp" for dev (Mailpit)
-    email_provider: Literal["resend", "smtp"] = "smtp"
+    email_provider: Literal["resend", "smtp"] = "resend"
     resend_api_key: str = ""
-    smtp_host: str = "mailpit"
-    smtp_port: int = 1025
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from_email: str = "noreply@meetingmind.app"
+    smtp_from_email: str = "kristilere21@gmail.com"
     smtp_from_name: str = "MeetingMind"
 
     # Paystack
